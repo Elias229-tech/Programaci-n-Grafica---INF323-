@@ -128,7 +128,7 @@ function nuevaPieza(){
   return {bloques:JSON.parse(JSON.stringify(p.forma)),x:5,y:19,color:p.color};
 }
 
-// Rotar pieza 90°
+// Rotar 
 function rotar(){
   if(juegoTerminado) return;
   pieza.bloques=pieza.bloques.map(([x,y])=>[-y,x]); 
@@ -185,12 +185,11 @@ function gameOver(){
   document.getElementById("gameover").style.display="block";
 }
 
-// ==================== DIBUJAR ====================
+
 function dibuja(){
   gl.clearColor(0.1,0.1,0.1,1);
   gl.clear(gl.COLOR_BUFFER_BIT);
 
-  // Dibujar tablero
   for(let y=0;y<filas;y++){
     for(let x=0;x<columnas;x++){
       if(tablero[y][x]) dibujarBloque(x,y,tablero[y][x]);
@@ -216,7 +215,7 @@ function dibujarBloque(x,y,color){
   gl.bindVertexArray(null);
 }
 
-// ==================== LOOP DEL JUEGO ====================
+// LOOP DEL JUEGO
 function update(){
   if(!juegoTerminado){
     pieza.y--;
@@ -226,7 +225,7 @@ function update(){
   }
 }
 
-// ==================== MAIN ====================
+
 function main(){
   let canvas=document.getElementById("webglcanvas");
   gl=canvas.getContext("webgl2");
@@ -245,6 +244,7 @@ function main(){
 
   // Cuadrado como 2 triángulos
   let vertices=[-0.5,-0.5, 0.5,-0.5, 0.5,0.5, -0.5,-0.5, 0.5,0.5, -0.5,0.5];
+  
   triangulo=gl.createVertexArray();
   gl.bindVertexArray(triangulo);
   let buf=gl.createBuffer();
