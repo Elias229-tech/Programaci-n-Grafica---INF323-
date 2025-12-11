@@ -1,0 +1,1061 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8" />
+  <title>Práctica 6 — 3D</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+
+    :root{
+      --bg: #0f1724;
+      --panel: #0b1220;
+      --accent: #4a90e2;
+      --muted: #9aa7bf;
+      --card: #0f1b2a;
+    }
+    html,body{height:100%;margin:0;font-family: "Segoe UI", Roboto, Arial, sans-serif;background:linear-gradient(180deg,#071226 0%, #0b1630 100%);color:#e6eef8}
+    .app {
+      display: grid;
+      grid-template-columns: 240px 1fr;
+      grid-template-rows: auto 1fr;
+      gap: 12px;
+      height: 100vh;
+      padding: 14px;
+      box-sizing: border-box;
+    }
+    .topbar {
+      grid-column: 1 / -1;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+    }
+    .top-left {
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .logo {
+      font-weight:700;
+      font-size:18px;
+      color:var(--accent);
+      padding:6px 10px;
+      border-radius:8px;
+      background:rgba(255,255,255,0.03);
+    }
+    .model-select {
+      display:flex;
+      gap:10px;
+      align-items:center;
+      background:rgba(255,255,255,0.02);
+      padding:8px;
+      border-radius:8px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.4);
+    }
+    select, button {
+      background: rgb(16, 6, 56);
+      color:inherit;
+      border:1px solid rgba(255,255,255,0.06);
+      padding:8px 10px;
+      border-radius:6px;
+      font-size:14px;
+    }
+    button.primary {
+      background: linear-gradient(90deg,var(--accent),#2bb5ff);
+      color:#041026;
+      border: none;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .menuIzquierdo {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+      border-radius: 10px;
+      padding: 12px;
+      min-height: 0;
+      
+    }
+    .menuIzquierdo h3 { margin: 0 0 8px 0; color:var(--muted); font-weight:600; font-size:14px;}
+    .menu-list { list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:8px;}
+    .menu-item {
+      background: rgba(255,255,255,0.02);
+      padding:8px;
+      border-radius:6px;
+      color: #cfe7ff;
+      cursor:default;
+      font-size:14px;
+    }
+    .menu-item small { display:block; color:var(--muted); font-size:12px; margin-top:4px; }
+    .viewer {
+      border-radius: 10px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.01), rgba(255,255,255,0.005));
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      box-shadow: 0 10px 30px rgba(2,6,23,0.7);
+    }
+    #glcanvas {
+      width:100%;
+      height: 480px;
+      max-height: 60vh;
+      border-radius:8px;
+      display:block;
+      background:#000;
+    }
+    .controls-panel {
+      display:flex;
+      gap:10px;
+      align-items:center;
+      justify-content:flex-start;
+      flex-wrap:wrap;
+    }
+    .chip {
+      padding:6px 10px;
+      border-radius:999px;
+      background:rgba(255,255,255,0.02);
+      border:1px solid rgba(255,255,255,0.03);
+      font-size:13px;
+    }
+    .status {
+      color:var(--muted);
+      font-size:13px;
+    }
+    @media (max-width:900px){
+      .app { grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; }
+      .menuIzquierdo { order:2; }
+      .viewer { order:3; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <div class="topbar">
+      <div class="top-left">
+        <div class="logo">Práctica 6 — 3D</div>
+        <div class="model-select" title="Selecciona el archivo JSON a cargar">
+          <label for="modelFile" style="font-size:13px;color:var(--muted)">Objeto 3D de una:</label>
+          <select id="modelFile" aria-label="Selector de modelo">
+            <option value="Moto.json">Moto</option>
+            <option value="Camioneta.json">Camioneta</option>
+            <option value="Transformers.json">Trailer</option>
+          </select>
+          <button id="loadBtn" class="primary">Cargar</button>
+          <button id="resetBtn">Reiniciar</button>
+        </div>
+      </div>
+
+      <div class="controls-panel">
+        <button id="pauseBtn" style="padding:6px 10px;border-radius:6px;background:transparent;color:inherit;border:1px solid rgba(255,255,255,0.06)">Pausar</button>
+        <div class="status" id="status">Estado: esperando carga...</div>
+      </div>
+    </div>
+
+    <div class="menuIzquierdo" aria-label="Menú lateral">
+      <h3>Menú</h3>
+        <li class="menu-item">Primitivas
+          <small>Selecciona la primitiva de renderizado</small>
+          <select id="primitiveSelect" style="margin-top:6px;width:100%;background-color: #061025;">
+            <option value="POINTS">Puntos</option>
+            <option value="TRIANGLES">Triángulos</option>
+            <option value="WIREFRAME">Mallas</option>
+          </select>
+        </li>
+
+        <li class="menu-item">Rotación automática
+          <small>Activar rotación alrededor de un eje</small>
+          <select id="autoRotateSelect" style="margin-top:6px;width:100%;background-color: #061025;">
+            <option value="NONE">Off</option>
+            <option value="X">Eje X</option>
+            <option value="Y">Eje Y</option>
+            <option value="Z">Eje Z</option>
+          </select>
+        </li>
+
+        <li class="menu-item">Colores
+          <small>Selecciona color de renderizado</small>
+          <select id="colorSelect" style="margin-top:6px;width:100%;background-color: #061025;">
+            <option value="ORIGINAL">Original</option>
+            <option value="WHITE">Blanco</option>
+            <option value="GREEN">Verde</option>
+            <option value="RED">Rojo</option>
+            <option value="GRAY">Gris</option>
+          </select>
+        </li>
+      </ul>
+    </div>
+
+    <div class="viewer">
+      <canvas id="glcanvas"></canvas>
+    </div>
+  </div>
+
+  <!-- Shaders (WebGL2) -->
+  <script id="vs" type="x-shader/x-vertex">
+    #version 300 es
+    layout(location = 0) in vec3 aVertices;
+    layout(location = 1) in vec4 aColores;
+    layout(location = 2) in vec3 aNormales;
+    uniform mat4 uMatrizProyeccion;
+    uniform mat4 uMatrizVista;
+    uniform mat4 uMatrizModelo;
+    out vec4 vColores;
+    out vec3 vNormales;
+    out vec3 vVerticesCam;
+    void main() {
+      vColores = aColores;
+      // Normales
+      vNormales = mat3(uMatrizVista) * mat3(uMatrizModelo) * normalize(aNormales);
+      // Vértice 
+      vec4 vertCam = uMatrizVista * uMatrizModelo * vec4(aVertices, 1.0);
+      vVerticesCam = vertCam.xyz / vertCam.w;
+      gl_Position = uMatrizProyeccion * vertCam;
+      gl_PointSize = 2.5;
+    }
+  </script>
+
+  <script id="fs" type="x-shader/x-fragment">
+    #version 300 es
+    precision mediump float;
+    in vec4 vColores;
+    in vec3 vNormales;
+    in vec3 vVerticesCam;
+    uniform bool uUsarColorOverride;
+    uniform vec4 uColorOverride;
+    // Iluminación
+    uniform vec3 uPosicionVista;
+    uniform vec3 uPosicionLuz;
+    uniform vec3 u_Ia;
+    uniform vec3 u_Id;
+    uniform vec3 u_Is;
+    uniform vec3 u_ka;
+    uniform vec3 u_kd;
+    uniform vec3 u_ks;
+    uniform float u_brillo;
+    out vec4 colorSalida;
+    void main() {
+      vec3 colorMaterial = (uUsarColorOverride ? uColorOverride.rgb : vColores.rgb);
+
+      vec3 N = normalize(vNormales);
+      vec3 L = normalize(uPosicionLuz - vVerticesCam);
+      vec3 V = normalize(uPosicionVista - vVerticesCam);
+      vec3 H = normalize(L + V);
+
+      float NL = max(0.0, dot(N, L));
+      float NH = max(0.0, dot(N, H));
+
+      vec3 luzAmbiente = u_ka * u_Ia;
+      vec3 luzDifusa = u_kd * u_Id * NL;
+      vec3 luzEspecular = u_ks * u_Is * pow(NH, u_brillo);
+
+      vec3 rgb = luzAmbiente + luzDifusa + luzEspecular;
+
+      vec3 colorFinal = rgb * colorMaterial;
+      float alpha = (uUsarColorOverride ? uColorOverride.a : vColores.a);
+      colorSalida = vec4(colorFinal, alpha);
+    }
+  </script>
+
+  <script>
+    "use strict";
+
+    // ---------- Variables globales ----------
+    let canvas = document.getElementById("glcanvas");
+    let gl = canvas.getContext("webgl2");
+    if(!gl){ 
+      alert("Tu navegador no soporta WebGL2. Usa uno moderno (Chrome/Edge/Firefox)."); 
+      throw new Error("WebGL2 no soportado");
+    }
+
+    let program;
+
+    // Buffers y VAO
+    let vao = null;
+    let vertexCount = 0;
+    let hasIndices = false;
+    let indexCount = 0;
+    let indexType = null; 
+
+    // Matrices - CORREGIDO: Usar Float32Array consistentemente
+    let uMatrizProyeccionLoc, uMatrizVistaLoc, uMatrizModeloLoc;
+    let projection = new Float32Array(16);
+    let view = new Float32Array(16);
+    let model = new Float32Array(16);
+
+    // Transformaciones y control (cuaternión / arcball)
+    let MatrizRotacion = new Float32Array(16); 
+    let Matriz = new Float32Array(16); 
+    let tx = 0, ty = 0, tz = 0;
+    let sx = 1, sy = 1, sz = 1;
+    let boton_izq_presionado = false;
+    let boton_der_presionado = false;
+
+    // Estado UI
+    const statusEl = document.getElementById("status");
+    const autoRotateChip = document.getElementById("autoRotateChip");
+    const renderModeChip = document.getElementById("renderModeChip");
+    let autoRotate = false;
+    let autoRotateAxis = 'NONE';
+    let renderMode = "POINTS";
+    let isPaused = false;
+
+    // Color forzado: si true, se usará `colorForzado` en lugar de `vColor`
+    let uUsarColorOverrideLoc = null;
+    let uColorOverrideLoc = null;
+    // Iluminación (locations de uniforms)
+    let uPosicionVista = null;
+    let uPosicionLuz = null;
+    let u_Ia = null;
+    let u_Id = null;
+    let u_Is = null;
+    let u_ka = null;
+    let u_kd = null;
+    let u_ks = null;
+    let u_brillo = null;
+    let usarColorForzado = false;
+    let colorForzado = new Float32Array([1.0, 1.0, 1.0, 1.0]); // default white
+
+    // Datos del modelo
+    let posiciones = [];
+    let colores = [];
+    let indices = [];
+    let normales = [];
+
+    // Variables para ArcBall - CORREGIDO
+    let arcBall;
+    let lastPos = { x: 0, y: 0 };
+    let isDragging = false;
+
+    // ---------- Funciones de matrices CORREGIDAS ----------
+    // Función identidad: establece la matriz identidad (4x4)
+    function identidad(r) {
+      r[0]=1; r[4]=0; r[8]=0; r[12]=0;
+      r[1]=0; r[5]=1; r[9]=0; r[13]=0;
+      r[2]=0; r[6]=0; r[10]=1; r[14]=0;
+      r[3]=0; r[7]=0; r[11]=0; r[15]=1;
+    }
+
+    // Función multiplica: multiplica matrices 4x4 (c = a * b)
+    function multiplica(c, a, b) {
+      let r = new Float32Array(16); // CORREGIDO
+      for(let i=0; i<4; i++){
+        for(let j=0; j<4; j++){
+          let s=0;
+          for(let k=0; k<4; k++) s += a[i + k*4] * b[k + j*4];
+          r[i + j*4] = s;
+        }
+      }
+      for(let i=0; i<16; i++) c[i] = r[i];
+    }
+
+    // Función traslacion: aplica una traslación a la matriz dada
+    function traslacion(matriz, tx_, ty_, tz_) {
+      let r = new Float32Array(16); // CORREGIDO
+      identidad(r);
+      r[12] = tx_;
+      r[13] = ty_;
+      r[14] = tz_;
+      multiplica(matriz, matriz, r);
+    }
+
+    // Función escalacion: aplica escala a la matriz dada
+    function escalacion(matriz, sx_, sy_, sz_) {
+      let r = new Float32Array(16); // CORREGIDO
+      identidad(r);
+      r[0] = sx_;
+      r[5] = sy_;
+      r[10] = sz_;
+      multiplica(matriz, matriz, r);
+    }
+
+    // Proyección perspectiva (simple)
+    // Función perspective: calcula matriz de proyección en perspectiva
+    function perspective(r, fovy, aspect, near, far) {
+      let f = 1.0 / Math.tan(fovy/2);
+      r[0] = f/aspect; r[4]=0; r[8]=0; r[12]=0;
+      r[1]=0; r[5]=f; r[9]=0; r[13]=0;
+      r[2]=0; r[6]=0; r[10]=(far+near)/(near-far); r[14]=(2*near*far)/(near-far);
+      r[3]=0; r[7]=0; r[11]=-1; r[15]=0;
+    }
+
+    class Vector3 {
+  constructor(x=0,y=0,z=0){this.x=x;this.y=y;this.z=z;}
+  mas(v){return new Vector3(this.x+v.x,this.y+v.y,this.z+v.z);}
+  menos(v){return new Vector3(this.x-v.x,this.y-v.y,this.z-v.z);}
+  producto_vectorial(v2){ 
+    return new Vector3(
+      this.y*v2.z - this.z*v2.y, 
+      this.z*v2.x - this.x*v2.z, 
+      this.x*v2.y - this.y*v2.x
+    ); 
+  }
+      producto_escalar(v2){ return this.x*v2.x + this.y*v2.y + this.z*v2.z; }
+      longitud(){ return Math.sqrt(this.x*this.x + this.y*this.y + this.z*this.z); }
+      normaliza(){ 
+        let l=this.longitud(); 
+        if(l>0){this.x/=l;this.y/=l;this.z/=l;} 
+        return this;
+      }
+      clone() { return new Vector3(this.x, this.y, this.z); }
+    }
+
+    class ArcBall {
+      constructor(w,h){
+        this.Epsilon = 1.0e-5;
+        this.ajusta(w,h);
+      }
+      ajusta(w,h){
+        this.ancho = w;
+        this.alto = h;
+      }
+      mapToSphere(x, y) {
+        let p = new Vector3();
+        p.x = (2.0 * x - this.ancho) / this.ancho;
+        p.y = (this.alto - 2.0 * y) / this.alto;
+        
+        let length2 = p.x * p.x + p.y * p.y;
+        if (length2 > 1.0) {
+          p.normaliza();
+        } else {
+          p.z = Math.sqrt(1.0 - length2);
+        }
+        return p;
+      }
+    }
+
+    class Cuaternion {
+      constructor(w=1,x=0,y=0,z=0){ this.w=w; this.x=x; this.y=y; this.z=z; }
+      
+      static fromAxisAngle(axis, angle) {
+        let halfAngle = angle * 0.5;
+        let s = Math.sin(halfAngle);
+        return new Cuaternion(
+          Math.cos(halfAngle),
+          axis.x * s,
+          axis.y * s,
+          axis.z * s
+        );
+      }
+      
+      multiplica(q) {
+        return new Cuaternion(
+          this.w*q.w - this.x*q.x - this.y*q.y - this.z*q.z,
+          this.w*q.x + this.x*q.w + this.y*q.z - this.z*q.y,
+          this.w*q.y - this.x*q.z + this.y*q.w + this.z*q.x,
+          this.w*q.z + this.x*q.y - this.y*q.x + this.z*q.w
+        );
+      }
+
+      // Normaliza el cuaternión para mantener magnitud unitaria y evitar drift numérico
+      normaliza(){
+        let l = Math.sqrt(this.w*this.w + this.x*this.x + this.y*this.y + this.z*this.z);
+        if(l > 0.0){ this.w /= l; this.x /= l; this.y /= l; this.z /= l; }
+        return this;
+      }
+      
+      toMatrix() {
+        let matrix = new Float32Array(16);
+        let xx = this.x * this.x, yy = this.y * this.y, zz = this.z * this.z;
+        let xy = this.x * this.y, xz = this.x * this.z, yz = this.y * this.z;
+        let wx = this.w * this.x, wy = this.w * this.y, wz = this.w * this.z;
+        
+        matrix[0] = 1 - 2 * (yy + zz);
+        matrix[1] = 2 * (xy + wz);
+        matrix[2] = 2 * (xz - wy);
+        matrix[3] = 0;
+        
+        matrix[4] = 2 * (xy - wz);
+        matrix[5] = 1 - 2 * (xx + zz);
+        matrix[6] = 2 * (yz + wx);
+        matrix[7] = 0;
+        
+        matrix[8] = 2 * (xz + wy);
+        matrix[9] = 2 * (yz - wx);
+        matrix[10] = 1 - 2 * (xx + yy);
+        matrix[11] = 0;
+        
+        matrix[12] = 0;
+        matrix[13] = 0;
+        matrix[14] = 0;
+        matrix[15] = 1;
+        
+        return matrix;
+      }
+    }
+
+
+    function createShader(gl, type, source){
+
+      if(typeof source === 'string'){
+        source = source.replace(/^\s+/, '');
+      }
+      const shader = gl.createShader(type);
+      gl.shaderSource(shader, source);
+      gl.compileShader(shader);
+      if(!gl.getShaderParameter(shader, gl.COMPILE_STATUS)){
+        console.error("Error compiling shader:", gl.getShaderInfoLog(shader));
+        gl.deleteShader(shader);
+        return null;
+      }
+      return shader;
+    }
+    
+    function createProgramFromScripts(){
+
+      let vsSource = document.getElementById("vs").textContent || "";
+      let fsSource = document.getElementById("fs").textContent || "";
+      vsSource = vsSource.replace(/^\s+/, '');
+      fsSource = fsSource.replace(/^\s+/, '');
+
+      const vs = createShader(gl, gl.VERTEX_SHADER, vsSource);
+      const fs = createShader(gl, gl.FRAGMENT_SHADER, fsSource);
+
+      if(!vs || !fs){
+        console.error("No se pudieron compilar los shaders. Abortando creación del programa.");
+        return null;
+      }
+
+      const prog = gl.createProgram();
+      gl.attachShader(prog, vs);
+      gl.attachShader(prog, fs);
+      gl.linkProgram(prog);
+      if(!gl.getProgramParameter(prog, gl.LINK_STATUS)){
+        console.error("Error linking program:", gl.getProgramInfoLog(prog));
+        gl.deleteProgram(prog);
+        return null;
+      }
+      return prog;
+    }
+
+
+    function resizeCanvasToDisplaySize(canvas) {
+
+      const displayWidth  = canvas.clientWidth;
+      const displayHeight = canvas.clientHeight;
+      if (canvas.width  !== displayWidth || canvas.height !== displayHeight) {
+        canvas.width  = displayWidth;
+        canvas.height = displayHeight;
+        gl.viewport(0,0,canvas.width,canvas.height);
+        if(arcBall) arcBall.ajusta(canvas.width, canvas.height);
+      }
+    }
+
+    function initGL(){
+      program = createProgramFromScripts();
+      if(!program){
+        if(statusEl) statusEl.textContent = "Error: falló la compilación/enlace de los shaders. Mira la consola.";
+        return;
+      }
+      gl.useProgram(program);
+      uMatrizProyeccionLoc = gl.getUniformLocation(program, "uMatrizProyeccion");
+      uMatrizVistaLoc = gl.getUniformLocation(program, "uMatrizVista");
+      uMatrizModeloLoc = gl.getUniformLocation(program, "uMatrizModelo");
+
+      uUsarColorOverrideLoc = gl.getUniformLocation(program, "uUsarColorOverride");
+      uColorOverrideLoc = gl.getUniformLocation(program, "uColorOverride");
+      // Iluminación: obtener locations
+      uPosicionVista = gl.getUniformLocation(program, "uPosicionVista");
+      uPosicionLuz = gl.getUniformLocation(program, "uPosicionLuz");
+      u_Ia = gl.getUniformLocation(program, "u_Ia");
+      u_Id = gl.getUniformLocation(program, "u_Id");
+      u_Is = gl.getUniformLocation(program, "u_Is");
+      u_ka = gl.getUniformLocation(program, "u_ka");
+      u_kd = gl.getUniformLocation(program, "u_kd");
+      u_ks = gl.getUniformLocation(program, "u_ks");
+      u_brillo = gl.getUniformLocation(program, "u_brillo");
+
+      if(uUsarColorOverrideLoc) gl.uniform1i(uUsarColorOverrideLoc, usarColorForzado ? 1 : 0);
+      if(uColorOverrideLoc) gl.uniform4fv(uColorOverrideLoc, colorForzado);
+      // Valores iniciales para iluminación
+      if(uPosicionVista) gl.uniform3fv(uPosicionVista, new Float32Array([5, 5, 0.0]));
+      if(u_Ia) gl.uniform3fv(u_Ia, new Float32Array([0.2,0,0]));
+      if(u_Id) gl.uniform3fv(u_Id, new Float32Array([0,0,1.0]));
+      if(u_Is) gl.uniform3fv(u_Is, new Float32Array([1.0,1.0,1.0]));
+      
+      if(u_ka) gl.uniform3fv(u_ka, new Float32Array([0.1,0.1,0.1]));
+      if(u_kd) gl.uniform3fv(u_kd, new Float32Array([0.4,0.2,0.2]));
+      if(u_ks) gl.uniform3fv(u_ks, new Float32Array([1,1,1]));
+      if(u_brillo) gl.uniform1f(u_brillo, 16.0);
+
+      identidad(MatrizRotacion);
+      identidad(Matriz);
+      arcBall = new ArcBall(canvas.width, canvas.height);
+
+      gl.enable(gl.DEPTH_TEST);
+      gl.clearColor(0.02,0.04,0.08,1.0);
+      
+      createFallbackModel();
+      
+      requestAnimationFrame(renderLoop);
+    }
+
+    //Carga del json
+    async function loadModelFromJSON(filename){
+
+      if(statusEl) statusEl.textContent = "Estado: cargando " + filename + " ...";
+      try {
+        const res = await fetch(filename);
+        if(!res.ok) throw new Error("HTTP " + res.status);
+        const data = await res.json();
+
+        posiciones = data.vertices || data.positions || [];
+        indices = data.indices || [];
+        colores = data.colors || [];
+        normales = data.normals || [];
+
+        if(posiciones.length === 0){
+          throw new Error("No se encontraron vértices en el JSON.");
+        }
+
+        normalizaPosiciones();
+        if(colores.length === 0) generaColores();
+        if(!normales || normales.length === 0) calculaNormales();
+        createBuffers();
+
+        if(statusEl) statusEl.textContent = `Estado: modelo cargado (${posiciones.length/3} vértices)`;
+      } catch(err){
+        console.error("Error cargando modelo:", err);
+        if(statusEl) statusEl.textContent = "Error cargando modelo: " + err.message + ". Usando cubo de prueba.";
+        createFallbackModel();
+      }
+    }
+
+    function normalizaPosiciones(){
+
+      if(posiciones.length === 0) return;
+      let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity,minZ=Infinity,maxZ=-Infinity;
+      for(let i=0;i<posiciones.length;i+=3){
+        const x=posiciones[i], y=posiciones[i+1], z=posiciones[i+2];
+        if(x<minX) minX=x; if(x>maxX) maxX=x;
+        if(y<minY) minY=y; if(y>maxY) maxY=y;
+        if(z<minZ) minZ=z; if(z>maxZ) maxZ=z;
+      }
+      const centerX=(minX+maxX)/2, centerY=(minY+maxY)/2, centerZ=(minZ+maxZ)/2;
+      const rangeX=maxX-minX, rangeY=maxY-minY, rangeZ=maxZ-minZ;
+      const maxRange = Math.max(rangeX, rangeY, rangeZ);
+      const scale = (maxRange === 0) ? 1.0 : (2.0 / maxRange);
+      for(let i=0;i<posiciones.length;i+=3){
+        posiciones[i] = (posiciones[i] - centerX) * scale;
+        posiciones[i+1] = (posiciones[i+1] - centerY) * scale;
+        posiciones[i+2] = (posiciones[i+2] - centerZ) * scale;
+      }
+    }
+
+    function generaColores(){
+      // Función genera Colores en un inicio
+      colores = [];
+      for(let i=0;i<posiciones.length;i+=3){
+        let r = Math.abs(Math.sin(posiciones[i])) * 0.7 + 0.3;
+        let g = Math.abs(Math.cos(posiciones[i+1])) * 0.7 + 0.3;
+        let b = Math.abs(Math.sin(posiciones[i+2])) * 0.7 + 0.3;
+        colores.push(r, g, b, 1.0);
+      }
+    }
+
+      // Función computeNormals: calcula normales por vértice si no están en el JSON
+      function calculaNormales(){
+        normales = new Float32Array(posiciones.length);
+        for(let i=0;i<normales.length;i++) normales[i]=0.0;
+        if(indices && indices.length > 0){
+          for(let i=0;i<indices.length;i+=3){
+            const ia = indices[i]*3, ib = indices[i+1]*3, ic = indices[i+2]*3;
+            const ax = posiciones[ia], ay = posiciones[ia+1], az = posiciones[ia+2];
+            const bx = posiciones[ib], by = posiciones[ib+1], bz = posiciones[ib+2];
+            const cx = posiciones[ic], cy = posiciones[ic+1], cz = posiciones[ic+2];
+            const ux = bx-ax, uy = by-ay, uz = bz-az;
+            const vx = cx-ax, vy = cy-ay, vz = cz-az;
+            let nx = uy*vz - uz*vy;
+            let ny = uz*vx - ux*vz;
+            let nz = ux*vy - uy*vx;
+            // Acumular
+            normales[ia] += nx; normales[ia+1] += ny; normales[ia+2] += nz;
+            normales[ib] += nx; normales[ib+1] += ny; normales[ib+2] += nz;
+            normales[ic] += nx; normales[ic+1] += ny; normales[ic+2] += nz;
+          }
+        } else {
+          // Sin índices: asumir triángulos consecutivos
+          for(let i=0;i<posiciones.length;i+=9){
+            const ia = i, ib = i+3, ic = i+6;
+            const ax = posiciones[ia], ay = posiciones[ia+1], az = posiciones[ia+2];
+            const bx = posiciones[ib], by = posiciones[ib+1], bz = posiciones[ib+2];
+            const cx = posiciones[ic], cy = posiciones[ic+1], cz = posiciones[ic+2];
+            const ux = bx-ax, uy = by-ay, uz = bz-az;
+            const vx = cx-ax, vy = cy-ay, vz = cz-az;
+            let nx = uy*vz - uz*vy;
+            let ny = uz*vx - ux*vz;
+            let nz = ux*vy - uy*vx;
+            normales[ia] += nx; normales[ia+1] += ny; normales[ia+2] += nz;
+            normales[ib] += nx; normales[ib+1] += ny; normales[ib+2] += nz;
+            normales[ic] += nx; normales[ic+1] += ny; normales[ic+2] += nz;
+          }
+        }
+        // Normalizar normales
+        for(let i=0;i<normales.length;i+=3){
+          const nx = normales[i], ny = normales[i+1], nz = normales[i+2];
+          const len = Math.sqrt(nx*nx + ny*ny + nz*nz);
+          if(len > 0){ normales[i] = nx/len; normales[i+1] = ny/len; normales[i+2] = nz/len; } else { normales[i]=0; normales[i+1]=0; normales[i+2]=1; }
+        }
+        return normales;
+      }
+
+    //Cubo de prueba
+
+    function createFallbackModel(){
+      posiciones = [
+        -0.5,-0.5,-0.5,  0.5,-0.5,-0.5,  0.5,0.5,-0.5, -0.5,0.5,-0.5,  
+        -0.5,-0.5,0.5,   0.5,-0.5,0.5,   0.5,0.5,0.5,  -0.5,0.5,0.5    
+      ];
+      indices = [
+        0,1,2, 0,2,3,
+        4,5,6, 4,6,7,
+        0,3,7, 0,7,4,
+        1,5,6, 1,6,2,
+        3,2,6, 3,6,7,
+        0,4,5, 0,5,1
+      ];
+      generaColores();
+      calculaNormales();
+      createBuffers();
+    }
+
+    // ---------- Buffers y VAO ----------
+    function createBuffers(){
+      if(vao) gl.deleteVertexArray(vao);
+      vao = gl.createVertexArray();
+      gl.bindVertexArray(vao);
+
+
+      const posBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, posBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(posiciones), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(0);
+      gl.vertexAttribPointer(0, 3, gl.FLOAT, false, 0, 0);
+      vertexCount = posiciones.length / 3;
+
+
+      const colBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, colBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(colores), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(1);
+      gl.vertexAttribPointer(1, 4, gl.FLOAT, false, 0, 0);
+
+      // Normales (layout location 2)
+      const normalBuffer = gl.createBuffer();
+      gl.bindBuffer(gl.ARRAY_BUFFER, normalBuffer);
+      gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(normales), gl.STATIC_DRAW);
+      gl.enableVertexAttribArray(2);
+      gl.vertexAttribPointer(2, 3, gl.FLOAT, false, 0, 0);
+
+      if(indices && indices.length>0){
+        const ibo = gl.createBuffer();
+        gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ibo);
+
+        if(indices.length > 65535){
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint32Array(indices), gl.STATIC_DRAW);
+          indexType = gl.UNSIGNED_INT;
+        } else {
+          gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, new Uint16Array(indices), gl.STATIC_DRAW);
+          indexType = gl.UNSIGNED_SHORT;
+        }
+        hasIndices = true;
+        indexCount = indices.length;
+      } else {
+        hasIndices = false;
+        indexType = null;
+      }
+
+      gl.bindVertexArray(null);
+    }
+
+
+    function getCanvasRelativePosition(event){
+
+      const rect = canvas.getBoundingClientRect();
+      return { 
+        x: event.clientX - rect.left, 
+        y: event.clientY - rect.top 
+      };
+    }
+
+      // Multiplica matriz 4x4 por vector 3 (se asume w = 1), resultado en out[3]
+      function multiplicaMat4Vec3(out, m, v){
+        out[0] = m[0]*v[0] + m[4]*v[1] + m[8]*v[2] + m[12];
+        out[1] = m[1]*v[0] + m[5]*v[1] + m[9]*v[2] + m[13];
+        out[2] = m[2]*v[0] + m[6]*v[1] + m[10]*v[2] + m[14];
+      }
+
+      // Posición de la luz en coordenadas de mundo (se transformará a cámara cada frame)
+      let posLuzMundo = new Float32Array([-5.0, 0.0, 0.0]);
+
+    let startVec = new Vector3();
+    let currentQuat = new Cuaternion();
+    let accumulatedQuat = new Cuaternion();
+
+    function mouseDown(event){
+
+      event.preventDefault();
+      const pos = getCanvasRelativePosition(event);
+      lastPos = pos;
+      if(!arcBall){
+        resizeCanvasToDisplaySize(canvas);
+        arcBall = new ArcBall(canvas.width, canvas.height);
+      }
+
+      if(event.button === 0){
+        boton_izq_presionado = true;
+        startVec = arcBall.mapToSphere(pos.x, pos.y);
+        isDragging = true;
+      } else if(event.button === 2){
+        boton_der_presionado = true;
+      }
+    }
+
+    function mouseUp(event){
+        //funcion mouseUp hace que el boton deje de estar presionado
+      boton_izq_presionado = false;
+      boton_der_presionado = false;
+      isDragging = false;
+      
+      if(event.button === 0){
+        // Al soltar el botón, acumulamos current * acumulada (aplicar delta encima de la rotación previa)
+        accumulatedQuat = currentQuat.multiplica(accumulatedQuat).normaliza();
+        currentQuat = new Cuaternion();
+      }
+    }
+
+    function mouseMove(event){
+      // Función mouseMove
+      const pos = getCanvasRelativePosition(event);
+      
+      if(boton_izq_presionado && isDragging){
+        let endVec = arcBall.mapToSphere(pos.x, pos.y);
+        let axis = startVec.producto_vectorial(endVec);
+        let angle = startVec.producto_escalar(endVec);
+        
+        if(axis.longitud() > 0.001){
+          axis.normaliza();
+          angle = Math.acos(Math.max(-1, Math.min(1, angle)));
+          currentQuat = Cuaternion.fromAxisAngle(axis, angle);
+        }
+      } else if(boton_der_presionado){
+        let dx = (pos.x - lastPos.x) / 100;
+        let dy = (lastPos.y - pos.y) / 100;
+        tx += dx;
+        ty += dy;
+      }
+      
+      lastPos = pos;
+    }
+
+    function zoom(event){
+      // Función zoom para el scroll del ratón
+      event.preventDefault();
+      let factor = event.deltaY > 0 ? 0.9 : 1.1;
+      sx *= factor; 
+      sy *= factor; 
+      sz *= factor;
+    }
+
+    function renderLoop(){
+
+      resizeCanvasToDisplaySize(canvas);
+      if(isPaused){
+        requestAnimationFrame(renderLoop);
+        return;
+      }
+      gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+
+      const aspect = canvas.width / canvas.height;
+      perspective(projection, Math.PI/4, aspect, 0.1, 100.0);
+
+      identidad(view);
+      traslacion(view, 0, 0, -5);
+      identidad(model);
+      
+      let temp = new Float32Array(16);
+      let temp2 = new Float32Array(16);
+      
+      identidad(temp);
+      escalacion(temp, sx, sy, sz);
+      
+      let rotationQuat;
+      if(isDragging){
+        // Cuando se está arrastrando, la rotación actual (delta) se aplica encima de la acumulada
+        rotationQuat = currentQuat.multiplica(accumulatedQuat).normaliza();
+      } else {
+        rotationQuat = accumulatedQuat;
+      }
+      let rotationMatrix = rotationQuat.toMatrix();
+      multiplica(temp, temp, rotationMatrix);
+      
+      traslacion(temp, tx, ty, tz);
+      
+      for(let i=0; i<16; i++) model[i] = temp[i];
+
+      // Auto-rotación
+      if(autoRotate && autoRotateAxis !== 'NONE'){
+        let angle = 0.01;
+        let axis = new Vector3(0,0,0);
+        if(autoRotateAxis === 'X') axis = new Vector3(1,0,0);
+        else if(autoRotateAxis === 'Y') axis = new Vector3(0,1,0);
+        else if(autoRotateAxis === 'Z') axis = new Vector3(0,0,1);
+        let rotQuat = Cuaternion.fromAxisAngle(axis, angle);
+        // Aplicar la rotación automática encima de la rotación acumulada: acumulada = rotQuat * acumulada
+        accumulatedQuat = rotQuat.multiplica(accumulatedQuat).normaliza();
+      }
+
+      gl.useProgram(program);
+      gl.uniformMatrix4fv(uMatrizProyeccionLoc, false, projection);
+      gl.uniformMatrix4fv(uMatrizVistaLoc, false, view);
+      gl.uniformMatrix4fv(uMatrizModeloLoc, false, model);
+      if(uUsarColorOverrideLoc) gl.uniform1i(uUsarColorOverrideLoc, usarColorForzado ? 1 : 0);
+      if(uColorOverrideLoc) gl.uniform4fv(uColorOverrideLoc, colorForzado);
+
+      // Actualizar posición de la luz en coordenadas de cámara y pasar al shader
+      if(uPosicionLuz){
+        let pLuz = new Float32Array(3);
+        multiplicaMat4Vec3(pLuz, view, posLuzMundo);
+        gl.uniform3fv(uPosicionLuz, pLuz);
+      }
+      // (Opcional) asegurar que los parámetros de iluminación están presentes
+      if(u_Ia) gl.uniform3fv(u_Ia, new Float32Array([0.2,0,0]));
+      if(u_Id) gl.uniform3fv(u_Id, new Float32Array([1.0,0,1.0]));
+      if(u_Is) gl.uniform3fv(u_Is, new Float32Array([1,0,0]));
+
+      if(vao){
+        gl.bindVertexArray(vao);
+        if(hasIndices){
+            const itype = indexType || gl.UNSIGNED_SHORT;
+            if(renderMode === "POINTS"){
+              gl.drawElements(gl.POINTS, indexCount, itype, 0);
+            } else if(renderMode === "WIREFRAME"){
+              gl.drawElements(gl.LINES, indexCount, itype, 0);
+            } else {
+              gl.drawElements(gl.TRIANGLES, indexCount, itype, 0);
+            }
+          } else {
+            if(renderMode === "POINTS"){
+              gl.drawArrays(gl.POINTS, 0, vertexCount);
+            } else if(renderMode === "WIREFRAME"){
+              gl.drawArrays(gl.LINES, 0, vertexCount);
+            } else {
+              gl.drawArrays(gl.TRIANGLES, 0, vertexCount);
+            }
+        }
+        gl.bindVertexArray(null);
+      }
+
+      requestAnimationFrame(renderLoop);
+    }
+
+    document.getElementById("loadBtn").addEventListener("click", ()=>{
+      const filename = document.getElementById("modelFile").value;
+      loadModelFromJSON(filename);
+    });
+    (function(){
+      function renderModeLabel(mode){
+        if(mode === 'POINTS') return 'Puntos';
+        if(mode === 'TRIANGLES') return 'Triángulos';
+        if(mode === 'WIREFRAME') return 'Mallas';
+        return mode;
+      }
+      const primitiveSelect = document.getElementById('primitiveSelect');
+      if(primitiveSelect){
+        primitiveSelect.addEventListener('change', (e)=>{
+          renderMode = e.target.value;
+          if(renderModeChip) renderModeChip.textContent = 'Modo: ' + renderModeLabel(renderMode);
+        });
+        if(renderModeChip) renderModeChip.textContent = 'Modo: ' + renderModeLabel(renderMode);
+      }
+    })();
+
+    (function(){
+      const autoSel = document.getElementById('autoRotateSelect');
+      if(!autoSel) return;
+      autoSel.addEventListener('change', (e)=>{
+        autoRotateAxis = e.target.value;
+        autoRotate = (autoRotateAxis !== 'NONE');
+        if(autoRotateChip) autoRotateChip.textContent = 'Rotación automática: ' + (autoRotate ? ('Eje ' + autoRotateAxis) : 'OFF');
+      });
+    })();
+    
+    document.getElementById("resetBtn").addEventListener("click", ()=>{
+      tx = 0; ty = 0; tz = 0;
+      sx = sy = sz = 1;
+      identidad(MatrizRotacion);
+      currentQuat = new Cuaternion();
+      accumulatedQuat = new Cuaternion();
+      if(statusEl) statusEl.textContent = "Estado: vista reiniciada";
+    });
+
+    // funcion de selección de color
+    (function(){
+      const colorSelect = document.getElementById('colorSelect');
+      if(!colorSelect) return;
+      colorSelect.addEventListener('change', (e)=>{
+        const v = e.target.value;
+        if(v === 'ORIGINAL'){
+          usarColorForzado = false;
+        } else if(v === 'WHITE'){
+          usarColorForzado = true; colorForzado = new Float32Array([1.0,1.0,1.0,1.0]);
+        } else if(v === 'GREEN'){
+          usarColorForzado = true; colorForzado = new Float32Array([0.0,1.0,0.0,1.0]);
+        } else if(v === 'RED'){
+          usarColorForzado = true; colorForzado = new Float32Array([1.0,0.0,0.0,1.0]);
+        } else if(v === 'GRAY'){
+          usarColorForzado = true; colorForzado = new Float32Array([0.6,0.6,0.6,1.0]);
+        }
+
+        if(program){
+          if(uUsarColorOverrideLoc) gl.uniform1i(uUsarColorOverrideLoc, usarColorForzado ? 1 : 0);
+          if(uColorOverrideLoc) gl.uniform4fv(uColorOverrideLoc, colorForzado);
+        }
+      });
+    })();
+
+    canvas.addEventListener("contextmenu", (e)=> e.preventDefault());
+    canvas.addEventListener("mousedown", mouseDown);
+    window.addEventListener("mouseup", mouseUp);
+    canvas.addEventListener("mousemove", mouseMove);
+    canvas.addEventListener("wheel", zoom, { passive: false });
+
+    // Botón de pausa / reanudar
+    document.getElementById('pauseBtn').addEventListener('click', ()=>{
+      isPaused = !isPaused;
+      const btn = document.getElementById('pauseBtn');
+      if(btn) btn.textContent = isPaused ? 'Reanudar' : 'Pausar';
+      if(statusEl) statusEl.textContent = isPaused ? 'Estado: pausado' : 'Estado: activo';
+    });
+
+    window.addEventListener("keydown", (e)=>{
+      if(e.key === "m"){
+        if(renderMode === "POINTS") renderMode = "TRIANGLES";
+        else if(renderMode === "TRIANGLES") renderMode = "WIREFRAME";
+        else if(renderMode === "WIREFRAME") renderMode = "POINTS";
+        else renderMode = "POINTS";
+        function renderModeLabel(mode){ if(mode==='POINTS') return 'Puntos'; if(mode==='TRIANGLES') return 'Triángulos'; if(mode==='WIREFRAME') return 'Mallas'; return mode; }
+        if(renderModeChip) renderModeChip.textContent = "Modo: " + renderModeLabel(renderMode);
+      } else if(e.key === "r"){
+        autoRotate = !autoRotate;
+        if(autoRotate && autoRotateAxis === 'NONE') autoRotateAxis = 'Y';
+        if(autoRotateChip) autoRotateChip.textContent = "Rotación automática: " + (autoRotate ? (autoRotateAxis === 'NONE' ? 'ON' : ('Eje ' + autoRotateAxis)) : "OFF");
+      } else if(e.key === " "){
+        tx = ty = tz = 0; 
+        sx = sy = sz = 1;
+        identidad(MatrizRotacion);
+        currentQuat = new Cuaternion();
+        accumulatedQuat = new Cuaternion();
+      }
+    });
+
+    window.onload = function(){
+      canvas.style.width = "100%";
+      canvas.style.height = "100%";
+      resizeCanvasToDisplaySize(canvas);
+      initGL();
+      
+      statusEl.textContent = "Estado: listo - Usa el ratón para rotar (click izq), arrastrar (click der) y rueda para zoom";
+    };
+  </script>
+</body>
+</html>
